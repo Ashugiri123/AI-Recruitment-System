@@ -17,7 +17,10 @@ import {
   MicOff,
   Video,
   VideoOff,
-  Camera
+  Camera,
+  Volume2,
+  VolumeX,
+  RotateCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -115,6 +118,11 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // TTS state
+  const ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -196,6 +204,66 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
       }
     };
   }, []);
+
+  // TTS helpers
+  const stopSpeaking = useCallback(() => {
+    if (ttsSupported) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    utteranceRef.current = null;
+  }, [ttsSupported]);
+
+  const speakQuestion = useCallback((text: string) => {
+    if (!ttsSupported || !text.trim()) return;
+    // Cancel any in-progress speech first
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.95;   // Slightly slower than default for clarity
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    // Prefer a natural English voice if available; fall back to browser default
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(
+      v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Daniel'))
+    ) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      utteranceRef.current = null;
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      utteranceRef.current = null;
+    };
+
+    utteranceRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  }, [ttsSupported]);
+
+  // Auto-speak when a new AI question arrives
+  useEffect(() => {
+    if (interviewStarted && currentQuestion) {
+      // Small delay to let voices load on first render
+      const timer = setTimeout(() => speakQuestion(currentQuestion), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [currentQuestion, interviewStarted, speakQuestion]);
+
+  // Cancel TTS on unmount
+  useEffect(() => {
+    return () => {
+      if (ttsSupported) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [ttsSupported]);
 
   const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -623,9 +691,9 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
   // 3. ACTIVE INTERVIEW ROOM VIEW
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col p-4 sm:p-6 lg:p-8">
-      <div className="max-w-4xl w-full mx-auto space-y-6">
+      <div className="max-w-5xl w-full mx-auto space-y-6">
         
-        {/* Top Navigation & Status Bar */}
+        {/* Top Meeting Header & Status Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow">
@@ -634,7 +702,7 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  AI Interview Session
+                  AI Interview Room
                 </h1>
                 <span className="flex h-2 w-2 relative">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -642,7 +710,7 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Candidate: <span className="font-medium text-slate-700 dark:text-slate-300">{candidateName}</span> • Role: <span className="font-medium text-slate-700 dark:text-slate-300">{jobTitle}</span>
+                Candidate: <span className="font-medium text-slate-700 dark:text-slate-300">{candidateName}</span> • Role: <span className="font-medium text-slate-700 dark:text-slate-300">{jobTitle || "Candidate"}</span>
               </p>
             </div>
           </div>
@@ -657,44 +725,82 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
           </div>
         </div>
 
-        {/* Webcam Panel */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-              <Camera className="w-4 h-4 text-cyan-600" />
-              <span>Your Camera</span>
-              {cameraStatus === 'active' && (
-                <span className="flex h-2 w-2 relative ml-1">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        {/* Two Main Video-Call Panels */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          {/* LEFT: AI Interviewer Panel (Camera Off Video-Call Participant) */}
+          <div className="relative bg-slate-950 rounded-2xl border border-slate-800 shadow-lg overflow-hidden flex flex-col items-center justify-center min-h-[280px] sm:min-h-[320px] aspect-video">
+            {/* Background ambient gradient */}
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-950 to-slate-950 pointer-events-none" />
+
+            {/* Centered AI Avatar with speaking visualizer */}
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="relative flex items-center justify-center">
+                {isSpeaking && (
+                  <>
+                    <span className="absolute -inset-4 rounded-full bg-cyan-500/20 animate-ping" />
+                    <span className="absolute -inset-2 rounded-full border-2 border-cyan-400/60 animate-pulse" />
+                    <span className="absolute -inset-6 rounded-full border border-cyan-400/25 animate-pulse" />
+                  </>
+                )}
+                <div
+                  className={`w-24 h-24 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center shadow-2xl transition-all duration-300 ${
+                    isSpeaking
+                      ? "ring-4 ring-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.45)] scale-105"
+                      : "border-2 border-slate-700"
+                  }`}
+                >
+                  <Bot className="w-12 h-12 text-white" />
+                </div>
+              </div>
+
+              {/* AI Interviewer Name */}
+              <p className="mt-3.5 text-sm font-semibold text-slate-200">
+                AI Interviewer
+              </p>
+
+              {/* Speaking Visual / Audio Equalizer Indicator */}
+              {isSpeaking ? (
+                <div className="flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-medium animate-pulse shadow-sm">
+                  <span className="flex items-center gap-0.5 h-3 mr-0.5">
+                    <span className="w-1 bg-cyan-400 rounded-full animate-[pulse_0.6s_ease-in-out_infinite] h-2"></span>
+                    <span className="w-1 bg-cyan-400 rounded-full animate-[pulse_0.4s_ease-in-out_infinite] h-3.5"></span>
+                    <span className="w-1 bg-cyan-400 rounded-full animate-[pulse_0.8s_ease-in-out_infinite] h-2"></span>
+                    <span className="w-1 bg-cyan-400 rounded-full animate-[pulse_0.5s_ease-in-out_infinite] h-3"></span>
+                  </span>
+                  AI is speaking...
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 mt-2 px-2.5 py-0.5 rounded-full bg-slate-800/70 border border-slate-700/50 text-slate-400 text-xs">
+                  <Volume2 className="w-3 h-3 text-slate-500" />
+                  <span>Ready</span>
+                </div>
+              )}
+            </div>
+
+            {/* Video-Call Name Tag Overlay (Bottom Left) */}
+            <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-white text-xs">
+              <Bot className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="font-medium">AI Interviewer</span>
+              {isSpeaking && (
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
                 </span>
               )}
             </div>
-            <Button
-              id="camera-toggle-btn"
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={cameraStatus === 'active' ? stopCamera : startCamera}
-              disabled={cameraStatus === 'requesting'}
-              className={`text-xs h-7 px-3 flex items-center gap-1.5 transition-all ${
-                cameraStatus === 'active'
-                  ? 'border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30'
-                  : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-cyan-500 hover:text-cyan-600'
-              }`}
-            >
-              {cameraStatus === 'requesting' ? (
-                <><Loader2 className="w-3 h-3 animate-spin" /><span>Requesting...</span></>
-              ) : cameraStatus === 'active' ? (
-                <><VideoOff className="w-3 h-3" /><span>Turn Off Camera</span></>
-              ) : (
-                <><Video className="w-3 h-3" /><span>Turn On Camera</span></>
-              )}
-            </Button>
+
+            {/* Stage Indicator Overlay (Top Left) */}
+            <div className="absolute top-3 left-3 z-20">
+              <span className="bg-black/50 backdrop-blur-sm text-slate-300 text-[11px] px-2 py-0.5 rounded border border-white/10 uppercase tracking-wider">
+                {currentStage}
+              </span>
+            </div>
           </div>
 
-          <div className="relative bg-slate-950 flex items-center justify-center" style={{ height: '220px' }}>
-            {/* Live video element — always rendered so ref is stable */}
+          {/* RIGHT: Candidate Webcam Panel */}
+          <div className="relative bg-slate-950 rounded-2xl border border-slate-800 shadow-lg overflow-hidden flex flex-col items-center justify-center min-h-[280px] sm:min-h-[320px] aspect-video">
+            {/* Live Video Element - always mounted for ref stability */}
             <video
               ref={videoRef}
               autoPlay
@@ -705,66 +811,107 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
               }`}
             />
 
-            {/* Placeholder shown when camera is not active */}
+            {/* Camera Off / Placeholder when video is inactive */}
             {cameraStatus !== 'active' && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6 z-10 bg-slate-950">
                 {cameraStatus === 'idle' && (
                   <>
-                    <div className="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-                      <Camera className="w-7 h-7 text-slate-500" />
+                    <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shadow-lg">
+                      <Camera className="w-8 h-8 text-slate-500" />
                     </div>
-                    <p className="text-slate-500 text-sm">Initializing camera...</p>
+                    <p className="text-slate-400 text-sm">Initializing camera...</p>
                   </>
                 )}
                 {cameraStatus === 'requesting' && (
                   <>
-                    <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+                    <Loader2 className="w-10 h-10 text-cyan-500 animate-spin" />
                     <p className="text-slate-400 text-sm">Requesting camera permission...</p>
                   </>
                 )}
                 {cameraStatus === 'off' && (
                   <>
-                    <div className="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-                      <VideoOff className="w-7 h-7 text-slate-500" />
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-600 flex items-center justify-center shadow-lg text-white text-xl font-bold">
+                      {candidateName ? candidateName.slice(0, 2).toUpperCase() : <User className="w-8 h-8 text-slate-400" />}
                     </div>
-                    <p className="text-slate-400 text-sm">Camera is off</p>
-                    <button
-                      onClick={startCamera}
-                      className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
-                    >
-                      Turn camera back on
-                    </button>
+                    <div>
+                      <p className="text-slate-300 text-sm font-medium">Camera is turned off</p>
+                      <button
+                        onClick={startCamera}
+                        className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2 mt-1"
+                      >
+                        Turn camera on
+                      </button>
+                    </div>
                   </>
                 )}
                 {cameraStatus === 'denied' && (
                   <>
-                    <AlertCircle className="w-8 h-8 text-amber-500" />
+                    <AlertCircle className="w-10 h-10 text-amber-500" />
                     <p className="text-amber-400 text-sm font-medium">Camera permission denied</p>
-                    <p className="text-slate-500 text-xs">{cameraError}</p>
+                    <p className="text-slate-500 text-xs max-w-xs">{cameraError}</p>
                   </>
                 )}
                 {cameraStatus === 'unavailable' && (
                   <>
-                    <VideoOff className="w-8 h-8 text-slate-600" />
-                    <p className="text-slate-500 text-sm font-medium">Camera unavailable</p>
-                    <p className="text-slate-600 text-xs">{cameraError}</p>
+                    <VideoOff className="w-10 h-10 text-slate-600" />
+                    <p className="text-slate-400 text-sm font-medium">Camera unavailable</p>
+                    <p className="text-slate-600 text-xs max-w-xs">{cameraError}</p>
                   </>
                 )}
               </div>
             )}
 
-            {/* Camera active label overlay */}
+            {/* LIVE Badge (Top Right) */}
             {cameraStatus === 'active' && (
-              <div className="absolute bottom-2 left-3 flex items-center gap-1.5">
+              <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full border border-red-500/30">
                 <span className="flex h-2 w-2 relative">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                 </span>
-                <span className="text-xs font-medium text-white/80 bg-black/40 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wider">
                   LIVE
                 </span>
               </div>
             )}
+
+            {/* Video-Call Name Tag Overlay (Bottom Left) */}
+            <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-white text-xs">
+              <User className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="font-medium">{candidateName || "Candidate"} (You)</span>
+              {isListening ? (
+                <span className="flex items-center gap-1 text-red-400 ml-1">
+                  <Mic className="w-3 h-3 animate-pulse" />
+                  <span className="text-[10px]">Mic Active</span>
+                </span>
+              ) : (
+                <MicOff className="w-3 h-3 text-slate-400 ml-1" />
+              )}
+            </div>
+
+            {/* Camera Toggle Button (Bottom Right) */}
+            <div className="absolute bottom-3 right-3 z-20">
+              <Button
+                id="camera-toggle-btn"
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={cameraStatus === 'active' ? stopCamera : startCamera}
+                disabled={cameraStatus === 'requesting'}
+                className={`text-xs h-7 px-2.5 flex items-center gap-1.5 backdrop-blur-md transition-all shadow ${
+                  cameraStatus === 'active'
+                    ? 'bg-black/60 border-red-500/50 text-red-400 hover:bg-red-950/60'
+                    : 'bg-black/60 border-white/20 text-slate-200 hover:bg-white/10'
+                }`}
+              >
+                {cameraStatus === 'requesting' ? (
+                  <><Loader2 className="w-3 h-3 animate-spin" /><span>Requesting...</span></>
+                ) : cameraStatus === 'active' ? (
+                  <><VideoOff className="w-3 h-3 text-red-400" /><span>Turn Off Camera</span></>
+                ) : (
+                  <><Video className="w-3 h-3 text-cyan-400" /><span>Turn On Camera</span></>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -822,26 +969,70 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
           </Card>
         )}
 
-        {/* Current Active Question Card */}
+        {/* Current Active Question Card (Below Video Panels) */}
         <Card className="shadow-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-          <CardHeader className="bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/80 pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                <Bot className="w-5 h-5 text-cyan-600" />
-                <span className="font-semibold text-sm">
-                  {questionNumber === 0 ? "AI Introduction" : `Technical Question #${questionNumber}`}
+          <CardHeader className="bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/80 py-3 px-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                <span className="font-semibold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  AI Interviewer Question {questionNumber > 0 ? `• #${questionNumber}` : "• Introduction"}
                 </span>
               </div>
-              <Badge variant="outline" className="text-xs">
-                {currentStage.toUpperCase()}
-              </Badge>
+
+              {/* TTS Controls */}
+              {ttsSupported ? (
+                <div className="flex items-center gap-2">
+                  {isSpeaking ? (
+                    <>
+                      <div className="flex items-center gap-1.5 text-xs text-cyan-700 dark:text-cyan-300 font-medium">
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                        </span>
+                        <Volume2 className="w-3.5 h-3.5" />
+                        <span>Speaking...</span>
+                      </div>
+                      <Button
+                        id="tts-stop-btn"
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={stopSpeaking}
+                        className="text-xs h-7 px-2.5 flex items-center gap-1 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-red-400 hover:text-red-600"
+                      >
+                        <VolumeX className="w-3 h-3" />
+                        Stop Speaking
+                      </Button>
+                    </>
+                  ) : (
+                    currentQuestion && (
+                      <Button
+                        id="tts-replay-btn"
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => speakQuestion(currentQuestion)}
+                        className="text-xs h-7 px-2.5 flex items-center gap-1 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-cyan-500 hover:text-cyan-600"
+                      >
+                        <RotateCw className="w-3 h-3" />
+                        Replay Question
+                      </Button>
+                    )
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs text-slate-400">
+                  (Browser TTS unavailable)
+                </span>
+              )}
             </div>
           </CardHeader>
 
           <CardContent className="p-6">
-            <div className="text-slate-800 dark:text-slate-200 text-base sm:text-lg leading-relaxed whitespace-pre-line font-normal">
-              {currentQuestion || "Preparing interview question..."}
-            </div>
+            <blockquote className="text-slate-900 dark:text-slate-100 text-base sm:text-lg leading-relaxed whitespace-pre-line font-normal border-l-4 border-cyan-500 pl-4">
+              "{currentQuestion || "Preparing interview question..."}"
+            </blockquote>
           </CardContent>
         </Card>
 
@@ -979,7 +1170,6 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
             </div>
           </CardContent>
         </Card>
-
       </div>
     </div>
   );

@@ -385,29 +385,54 @@ PDF Resume Upload
 
 ---
 
-### NEXT TASK: Video Interview Phase — Task 2: AI TTS
+### Task 2: AI TTS — COMPLETE
 
-*(DO NOT implement until reviewed and approved by the project lead.)*
+- **Status**: COMPLETE & VERIFIED
+- **File changed**: `src/components1/VideoInterview.tsx` only
+- **Implementation**: Browser-native `window.speechSynthesis` + `SpeechSynthesisUtterance` — zero dependencies, zero backend changes
+- **Feature detection**: `'speechSynthesis' in window` — interview continues normally if unsupported (shows "Browser TTS unavailable" note)
+- **Voice selection**: Prefers natural English voice (Google, Natural, Samantha, Daniel) → falls back to any `en` voice → falls back to browser default
+- **TTS config**: `rate=0.95`, `pitch=1.0`, `lang='en-US'`
+- **Auto-speak**: `useEffect` on `currentQuestion` (with 300ms delay to allow voice list to load) auto-speaks every new AI question
+- **Stop Speaking**: `speechSynthesis.cancel()` — immediately stops current speech, transitions header to Replay state
+- **Replay Question**: Cancels any current speech, re-speaks `currentQuestion` — restores "AI is speaking..." indicator
+- **New question arrives**: Previous speech cancelled, new question spoken automatically
+- **Unmount cleanup**: `useEffect` cleanup calls `speechSynthesis.cancel()` — no speech continues after leaving the interview
+- **UI**: Speaking indicator (pulsing cyan dot + "AI is speaking...") + "Stop Speaking" button while active; "Replay Question" button when idle — in existing question card header
+- **Autoplay note**: Browser autoplay policy may block auto-speech until first user interaction. "Replay Question" handles this — no crash, no interview block
+- **Existing functionality unchanged**: Webcam, Web Speech API mic, typed answers, Groq evaluation, adaptive questions, final scorecard — all verified
+- **`npx tsc --noEmit`**: PASS (0 errors)
+- **`npm run build`**: PASS (8.00s)
+- **Browser verification**: AI introduction auto-spoken → Stop Speaking cancels → Replay Question re-speaks → no console errors
 
-**Planned scope:**
-- Add AI text-to-speech so the AI interviewer reads questions aloud
-- Use browser Web Speech API `speechSynthesis` (zero-dependency) as first option
-- Fallback: Deepgram Aura via existing `/api/tts/speak` FastAPI endpoint
-- Synchronize AI question display → TTS playback → candidate response
-- Reuse existing interview conductor, questions, evaluation, and scoring
-- Do NOT rewrite working interview logic
+---
 
-**Architecture Rules (carry forward):**
-- Reuse the existing interview conductor (`interview_conductor_agent.py`).
-- Reuse adaptive questioning and answer evaluation.
-- Reuse MongoDB persistence.
-- Add video/TTS around the existing interview engine — do NOT rewrite working interview logic.
-- Google Meet / browser automation remains deferred.
-- Avoid unnecessary dependencies and architecture.
-- Do not expose or modify secrets.
-- Do not remove working functionality.
+### Video Interview Phase — Task 2A: Interview Room Visual Redesign
 
-*(DO NOT implement this phase until reviewed and approved by the project lead.)*
+- **Status**: COMPLETE & VERIFIED
+- **File changed**: `src/components1/VideoInterview.tsx` only
+- **Two-panel video-call layout**: Two balanced video-call panels (desktop: side-by-side, mobile: stacked) resembling Google Meet / Zoom / Teams.
+- **AI interviewer avatar panel**: Centered AI avatar with dark video-call background, "AI Interviewer" label, participant name tag pill, and audio visualizer.
+- **Candidate webcam panel**: Live camera video stream rendered via `videoRef`, top-right `LIVE` badge, bottom-left participant name tag with real-time mic status, and bottom-right `#camera-toggle-btn`.
+- **AI speaking visual driven by existing isSpeaking state**: Concentric multi-layer pulsing glow rings around avatar + dynamic 4-bar audio equalizer badge triggered when `isSpeaking` is true; static when idle.
+- **Candidate camera on/off**: Camera can be toggled on and off cleanly via `#camera-toggle-btn` with tracks stopped on turn-off and unmount.
+- **Camera-off placeholder**: Displays video-call style placeholder with candidate initials avatar circle, "Camera is turned off" text, and "Turn camera on" link.
+- **Question displayed below video panels**: Current AI question presented prominently below the video grid in styled speech blockquote with stage badge.
+- **Existing TTS controls preserved**: Automatic question reading, `#tts-stop-btn` ("Stop Speaking"), and `#tts-replay-btn` ("Replay Question") fully functional.
+- **Existing microphone controls preserved**: `#speak-answer-btn`, `#listening-banner` ("Done Speaking"), real-time transcript insertion into `#candidate-answer-textarea`, and `#submit-answer-btn` fully functional.
+- **Existing interview logic unchanged**: Groq questions, LangGraph conductor, answer evaluation, adaptive follow-ups, and scorecard unchanged.
+- **TypeScript passed**: `npx tsc --noEmit` exited 0 with 0 errors.
+- **Production build passed**: `npm run build` completed in 8.48s with exit code 0.
+- **Browser verification passed**: Full verification at `http://localhost:3000/interview/TestCandidate` confirmed all visual components and interaction flows work.
+- **0 console errors**: Browser console completely clean.
+
+---
+
+### NEXT TASK
+
+Task 3 — Final Interview Room Polish / Integration Review
+
+*(DO NOT implement Task 3 until reviewed and approved by the project lead.)*
 
 ---
 
@@ -443,6 +468,8 @@ PDF Resume Upload
 | 2026-09-20 | Task 10 Fix Resume Analysis Groq Model Config | Replaced hardcoded `llama-3.3-70b-versatile` in `resume_analysis_agent.py` with `os.getenv('GROQ_MODEL', 'qwen/qwen3.8-27b')`. Verified `/api/analyze` with `Vaibhav_Narute.pdf` (score=58.0, 8 matching skills) and `Aaryan Gole - Resume.pdf` (score=28.0). Candidate handoff, `tsc` (0 errors), `npm run build` all PASS. |
 | 2026-09-20 | MVP Checkpoint — Verified before Video Interview + AI TTS phase | 21/21 QA checks passed. Full end-to-end flow confirmed. Git checkpoint committed. |
 | 2026-09-20 | Video Interview Phase Task 1 — Webcam Integration | Added native webcam preview to `VideoInterview.tsx` using `navigator.mediaDevices.getUserMedia`. Implemented idle/requesting/active/off/denied/unavailable camera states, toggle on/off control, auto-start on interview begin, and stream cleanup on unmount. Zero backend changes, zero new dependencies. `tsc` (0 errors), `npm run build` (PASS 8.77s), browser verified (camera active, toggle works, no console errors). |
+| 2026-09-20 | Video Interview Phase Task 2 — AI TTS | Added `window.speechSynthesis` TTS to `VideoInterview.tsx`. AI questions auto-spoken on arrival (300ms delay for voice list). Stop Speaking / Replay Question controls in question card header. Pulsing cyan "AI is speaking..." indicator. Unmount cleanup cancels speech. Feature-detected with graceful fallback. Autoplay policy handled via Replay button. Zero backend changes, zero new dependencies. `tsc` (0 errors), `npm run build` (PASS 8.00s). |
+| 2026-09-20 | Video Interview Phase Task 2A — Interview Room Visual Redesign | Redesigned `VideoInterview.tsx` active room into a modern 2-panel video call interface (Zoom / Meet style). Left panel: AI Interviewer (camera-off participant, centered avatar with concentric pulsing ring animation + 4-bar audio equalizer driven by existing `isSpeaking`). Right panel: Candidate Webcam (live feed via `videoRef`, LIVE badge, name tag with mic state, camera toggle on/off, video-call placeholder when off). AI Question presented prominently below video panels with TTS controls. Candidate answer textarea and mic controls preserved with zero logic changes. Zero backend changes, zero new dependencies. `tsc` (0 errors), `npm run build` (PASS 8.48s), browser verified. |
 
 
 
