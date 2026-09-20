@@ -122,14 +122,17 @@ class ResumeAnalysisAgent:
     ✅ New: Structured workflow with clear responsibilities per node
     """
     
-    def __init__(self, groq_api_key: str, model: str = "llama-3.3-70b-versatile"):
+    def __init__(self, groq_api_key: str, model: str = None):
         """
         Initialize the Resume Analysis Agent
         
         Args:
             groq_api_key: Groq API key for LLM
-            model: Model to use (default: llama-3.3-70b-versatile)
+            model: Model to use (default: GROQ_MODEL env var or qwen/qwen3.8-27b)
         """
+        if not model:
+            model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+        self.model = model
         self.llm = ChatGroq(
             api_key=groq_api_key,
             model=model,

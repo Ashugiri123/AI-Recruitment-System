@@ -276,39 +276,110 @@ All secret values must be stored exclusively in `backend/.env`.
 
 ---
 
-## 13. Current Task
+## 13. MVP Checkpoint — VERIFIED & COMPLETE
 
-TASK 8: Add Voice Interaction to Existing AI Interview (COMPLETED & VERIFIED).
-
-### Verification Status:
-- **FastAPI STT Endpoint Inspection**: **HEALTHY** (`GET /api/stt/health` returned 200 with Groq Whisper and transcription pipeline ready).
-- **Implementation Approach**: Native Web Speech API (`webkitSpeechRecognition` / `SpeechRecognition`) integrated into `src/components1/VideoInterview.tsx` per project instruction Rule 2. Zero external libraries added.
-- **Voice UI**: **PASS**
-  - "Speak Answer" button positioned directly above the candidate answer textarea.
-  - Active listening state with pulsing red recording indicator, animated listening banner, and "Stop Listening" / "Done Speaking" actions.
-  - Recognized speech streams into the existing answer textarea in real-time.
-  - Text remains fully editable before submission.
-  - Graceful fallback for permission denial, absence of microphone hardware, or unsupported browsers without crashing.
-- **Answer Submission & AI Evaluation**: **PASS**
-  - Submitting voice-transcribed answer evaluated by Groq via FastAPI `POST /api/interview/answer`.
-  - Next technical question generated and rendered dynamically.
-- **Normal Typed Answers**: **PASS** (Normal text typing and answer submission remain 100% functional).
-- **TypeScript Check (`npx tsc --noEmit`)**: **PASS** (0 errors).
-- **Production Build (`npm run build`)**: **PASS** (`dist/` generated cleanly in 6.89s).
-- **Browser Flow Test**: **PASS** (Full interview flow verified with voice control and multiple Q&A rounds).
-
-### Remaining Blockers:
-- None. Voice interaction is fully connected, non-intrusive, and verified.
+> **The MVP is VERIFIED and WORKING. The next development phase is Video Interview + AI TTS.**
 
 ---
 
-## 14. Next Planned Task
+### TASK 9 — COMPLETE: Restore Flask Resume Analysis
 
-**Task: Spoken AI Questions (Text-To-Speech / TTS) & Interview Completion Scorecard**
-- Add speech playback (Web Speech API `speechSynthesis` or Deepgram Aura via `/api/tts/speak`) so the AI interviewer reads questions aloud.
-- Display cumulative final scorecard view with category scores and hiring recommendation upon interview conclusion.
+- Installed `spacy==3.8.16`.
+- Installed `en_core_web_sm==3.8.0`.
+- Flask resume analysis restored and verified.
+- `backend/app.py` modified: added `use_reloader=False` to `app.run()` to prevent Windows Python 3.14 Werkzeug reloader socket crash (`WinError 10038`) and to preserve `.env` variables across the Flask process lifecycle.
+- Windows Flask launch requires: `$env:PYTHONUTF8="1"; python app.py`
+- Real PDF `/api/analyze` verified: HTTP 200, candidate extraction working, score returned.
+- Groq resume analysis working via `ResumeAnalysisAgent`.
 
-*(DO NOT implement this task until reviewed and approved by the project lead).*
+---
+
+### TASK 10 — COMPLETE: Fix ResumeAnalysisAgent Groq Model
+
+- `backend/langgraph_agents/resume_analysis_agent.py` updated: replaced hardcoded `llama-3.3-70b-versatile` with `os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")`.
+- Current model: `qwen/qwen3.8-27b`.
+- Dynamic skill matching verified with real resumes.
+- Candidate screening verified end-to-end.
+- Candidate → interview handoff verified.
+
+---
+
+### POST-TASK-10 FULL QA — COMPLETE (21/21 CHECKS PASSED)
+
+- **Critical blockers**: 0
+- **Normal bugs**: 0
+- **Minor issues**: 1 (Windows UTF-8 console limitation — non-blocking, resolved by `PYTHONUTF8=1`)
+
+| Check | Result |
+| :--- | :--- |
+| Vite frontend `:3000` | ✅ PASS |
+| Flask `:5000` | ✅ PASS |
+| FastAPI `:8001` | ✅ PASS |
+| MongoDB Atlas | ✅ PASS |
+| Groq (`qwen/qwen3.8-27b`) | ✅ PASS |
+| Real PDF `/api/analyze` | ✅ PASS |
+| Browser resume screening UI | ✅ PASS |
+| Candidate → interview handoff | ✅ PASS |
+| AI interview start (Groq intro) | ✅ PASS |
+| Typed answer submission | ✅ PASS |
+| Web Speech API voice input | ✅ PASS |
+| AI answer evaluation | ✅ PASS |
+| Adaptive follow-up questions | ✅ PASS |
+| Final scorecard display | ✅ PASS |
+| MongoDB persistence | ✅ PASS |
+| Error handling (bad inputs) | ✅ PASS |
+| `npx tsc --noEmit` | ✅ 0 errors |
+| `npm run build` | ✅ PASS |
+| Browser console errors | ✅ None |
+| `.env` secrets unexposed | ✅ PASS |
+| Git history clean | ✅ PASS |
+
+---
+
+### CURRENT VERIFIED END-TO-END FLOW
+
+```
+PDF Resume Upload
+→ Flask /api/analyze (:5000)
+→ AI Resume Analysis (Groq + LangGraph)
+→ Candidate Screening & Ranking
+→ Candidate Selection
+→ Start Interview (handoff)
+→ FastAPI /api/interview/start (:8001)
+→ Groq AI generates personalized introduction
+→ Typed or Voice Answer (Web Speech API)
+→ FastAPI /api/interview/answer
+→ Groq AI evaluation + score
+→ Adaptive follow-up questions
+→ Final Scorecard
+→ MongoDB persistence
+```
+
+---
+
+## 14. Next Development Phase: VIDEO INTERVIEW + AI TTS
+
+**Planned implementation order:**
+1. Video interview UI
+2. Candidate webcam integration
+3. Candidate microphone integration
+4. AI text-to-speech (TTS)
+5. Synchronize AI question → TTS → candidate response
+6. Interview-room UI polish
+7. Full regression QA
+8. Recruiter dashboard / scorecard presentation
+
+**Architecture Rules for Next Phase:**
+- Reuse the existing interview conductor (`interview_conductor_agent.py`).
+- Reuse adaptive questioning and answer evaluation.
+- Reuse MongoDB persistence.
+- Add video/TTS around the existing interview engine — do NOT rewrite working interview logic.
+- Google Meet / browser automation remains deferred.
+- Avoid unnecessary dependencies and architecture.
+- Do not expose or modify secrets.
+- Do not remove working functionality.
+
+*(DO NOT implement this phase until reviewed and approved by the project lead.)*
 
 ---
 
@@ -340,6 +411,9 @@ TASK 8: Add Voice Interaction to Existing AI Interview (COMPLETED & VERIFIED).
 | 2026-09-20 | Task 6 Frontend AI Interview Room Integration | Replaced dead ZegoCloud ngrok code in `VideoInterview.tsx` with live interactive AI interview room connected to FastAPI port 8001. Added `FASTAPI_BASE_URL` in `api.ts` and created `interviewService.ts`. Fixed unconfigured Firebase and Groq SDK startup exceptions. Tested complete browser flow end-to-end: Start AI Interview → AI Introduction → Candidate Answer → AI Evaluation → Technical Question #1. Verified `tsc` (0 errors) and `npm run build` (PASS). |
 | 2026-09-20 | Task 7 Candidate Screening to Interview Connection | Connected candidate screening in `src/components/ui/resumeAnalyzer.tsx` to `src/components1/VideoInterview.tsx`. Passed candidate name, email, target job title, parsed skills, and resume profile with zero invented values. Handled both individual card and batch "Start Interview" actions. Verified browser hand-off, form pre-population, and AI interview start (`tsc` 0 errors, build PASS, browser test PASS). |
 | 2026-09-20 | Task 8 Voice Interaction in AI Interview Room | Added voice interaction layer to `src/components1/VideoInterview.tsx` using browser Web Speech API. Inspected FastAPI STT health (200 OK). Integrated "Speak Answer", live listening state, real-time speech insertion into answer textarea, full text editing capability, and error handling. Verified browser test end-to-end with multiple question evaluation cycles (`tsc` 0 errors, build PASS, browser test PASS). |
+| 2026-09-20 | Task 9 Restore Flask Resume Analysis | Installed `spacy==3.8.16` and `en_core_web_sm==3.8.0`. Fixed two Flask startup issues: (1) `UnicodeEncodeError` on Windows cp1252 — resolved via `PYTHONUTF8=1`; (2) Werkzeug watchdog reloader `WinError 10038` + env var loss — fixed by adding `use_reloader=False` to `app.run()`. Verified HTTP 200 with real PDF, score=44.0, Groq skills extraction working. |
+| 2026-09-20 | Task 10 Fix Resume Analysis Groq Model Config | Replaced hardcoded `llama-3.3-70b-versatile` in `resume_analysis_agent.py` with `os.getenv('GROQ_MODEL', 'qwen/qwen3.8-27b')`. Verified `/api/analyze` with `Vaibhav_Narute.pdf` (score=58.0, 8 matching skills) and `Aaryan Gole - Resume.pdf` (score=28.0). Candidate handoff, `tsc` (0 errors), `npm run build` all PASS. |
+| 2026-09-20 | MVP Checkpoint — Verified before Video Interview + AI TTS phase | 21/21 QA checks passed. Full end-to-end flow confirmed. Git checkpoint committed. |
 
 
 
