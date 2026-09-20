@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { 
   Bot, 
@@ -14,7 +14,10 @@ import {
   Briefcase,
   Clock,
   Mic,
-  MicOff
+  MicOff,
+  Video,
+  VideoOff,
+  Camera
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -105,6 +108,13 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
   const recognitionRef = useRef<any>(null);
   const textBeforeSpeechRef = useRef<string>("");
 
+  // Webcam state
+  type CameraStatus = 'idle' | 'requesting' | 'active' | 'denied' | 'unavailable' | 'off';
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -125,6 +135,65 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
         }
       }
       delete window.__simulateVoiceTranscript;
+    };
+  }, []);
+
+  // Webcam helpers
+  const startCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraStatus('unavailable');
+      setCameraError('Camera not supported in this browser.');
+      return;
+    }
+    setCameraStatus('requesting');
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setCameraStatus('active');
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraStatus('denied');
+        setCameraError('Camera permission denied. Please allow camera access in your browser settings.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setCameraStatus('unavailable');
+        setCameraError('No camera detected. Please connect a webcam to continue.');
+      } else {
+        setCameraStatus('unavailable');
+        setCameraError(`Camera error: ${err.message}`);
+      }
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraStatus('off');
+    setCameraError(null);
+  }, []);
+
+  // Start camera when interview begins
+  useEffect(() => {
+    if (interviewStarted) {
+      startCamera();
+    }
+  }, [interviewStarted, startCamera]);
+
+  // Stop all camera tracks on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
     };
   }, []);
 
@@ -585,6 +654,117 @@ const VideoInterview: React.FC<VideoInterviewProps> = () => {
             <Badge variant="secondary" className="text-xs px-2.5 py-1">
               {questionNumber === 0 ? "Introduction" : `Question #${questionNumber}`}
             </Badge>
+          </div>
+        </div>
+
+        {/* Webcam Panel */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <Camera className="w-4 h-4 text-cyan-600" />
+              <span>Your Camera</span>
+              {cameraStatus === 'active' && (
+                <span className="flex h-2 w-2 relative ml-1">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              )}
+            </div>
+            <Button
+              id="camera-toggle-btn"
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={cameraStatus === 'active' ? stopCamera : startCamera}
+              disabled={cameraStatus === 'requesting'}
+              className={`text-xs h-7 px-3 flex items-center gap-1.5 transition-all ${
+                cameraStatus === 'active'
+                  ? 'border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30'
+                  : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-cyan-500 hover:text-cyan-600'
+              }`}
+            >
+              {cameraStatus === 'requesting' ? (
+                <><Loader2 className="w-3 h-3 animate-spin" /><span>Requesting...</span></>
+              ) : cameraStatus === 'active' ? (
+                <><VideoOff className="w-3 h-3" /><span>Turn Off Camera</span></>
+              ) : (
+                <><Video className="w-3 h-3" /><span>Turn On Camera</span></>
+              )}
+            </Button>
+          </div>
+
+          <div className="relative bg-slate-950 flex items-center justify-center" style={{ height: '220px' }}>
+            {/* Live video element — always rendered so ref is stable */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover ${
+                cameraStatus === 'active' ? 'block' : 'hidden'
+              }`}
+            />
+
+            {/* Placeholder shown when camera is not active */}
+            {cameraStatus !== 'active' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6">
+                {cameraStatus === 'idle' && (
+                  <>
+                    <div className="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+                      <Camera className="w-7 h-7 text-slate-500" />
+                    </div>
+                    <p className="text-slate-500 text-sm">Initializing camera...</p>
+                  </>
+                )}
+                {cameraStatus === 'requesting' && (
+                  <>
+                    <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+                    <p className="text-slate-400 text-sm">Requesting camera permission...</p>
+                  </>
+                )}
+                {cameraStatus === 'off' && (
+                  <>
+                    <div className="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+                      <VideoOff className="w-7 h-7 text-slate-500" />
+                    </div>
+                    <p className="text-slate-400 text-sm">Camera is off</p>
+                    <button
+                      onClick={startCamera}
+                      className="text-xs text-cyan-400 hover:text-cyan-300 underline underline-offset-2"
+                    >
+                      Turn camera back on
+                    </button>
+                  </>
+                )}
+                {cameraStatus === 'denied' && (
+                  <>
+                    <AlertCircle className="w-8 h-8 text-amber-500" />
+                    <p className="text-amber-400 text-sm font-medium">Camera permission denied</p>
+                    <p className="text-slate-500 text-xs">{cameraError}</p>
+                  </>
+                )}
+                {cameraStatus === 'unavailable' && (
+                  <>
+                    <VideoOff className="w-8 h-8 text-slate-600" />
+                    <p className="text-slate-500 text-sm font-medium">Camera unavailable</p>
+                    <p className="text-slate-600 text-xs">{cameraError}</p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Camera active label overlay */}
+            {cameraStatus === 'active' && (
+              <div className="absolute bottom-2 left-3 flex items-center gap-1.5">
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+                <span className="text-xs font-medium text-white/80 bg-black/40 px-1.5 py-0.5 rounded">
+                  LIVE
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

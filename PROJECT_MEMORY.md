@@ -357,19 +357,47 @@ PDF Resume Upload
 
 ---
 
-## 14. Next Development Phase: VIDEO INTERVIEW + AI TTS
+## 14. Video Interview Phase
 
-**Planned implementation order:**
-1. Video interview UI
-2. Candidate webcam integration
-3. Candidate microphone integration
-4. AI text-to-speech (TTS)
-5. Synchronize AI question → TTS → candidate response
-6. Interview-room UI polish
-7. Full regression QA
-8. Recruiter dashboard / scorecard presentation
+---
 
-**Architecture Rules for Next Phase:**
+### Task 1: Webcam Integration — COMPLETE
+
+- **Status**: COMPLETE & VERIFIED
+- **File changed**: `src/components1/VideoInterview.tsx` only
+- **Implementation**: Native browser `navigator.mediaDevices.getUserMedia({ video: true, audio: false })`
+- **Display**: `<video ref autoPlay playsInline muted>` with `srcObject` binding
+- **Camera states implemented**:
+  - `idle` — brief initial state before camera auto-starts
+  - `requesting` — spinner shown while awaiting browser permission
+  - `active` — live video stream visible with green dot + red LIVE badge
+  - `denied` — `NotAllowedError` caught, amber warning shown to candidate
+  - `unavailable` — `NotFoundError` / unsupported browser caught, grey placeholder shown
+  - `off` — manually turned off, placeholder + "Turn camera back on" link shown
+- **Camera auto-starts** when interview begins (`useEffect` on `interviewStarted`)
+- **Camera on/off controls**: "Turn Off Camera" / "Turn On Camera" toggle button in camera panel header
+- **Stream cleanup on unmount**: `useEffect` cleanup stops all `MediaStream` tracks — camera LED turns off when leaving the page
+- **No external libraries, no streaming service, no backend changes, no new dependencies**
+- **Existing AI interview functionality**: Typed answers, Web Speech API voice answers, adaptive questions, final scorecard — all unchanged and verified
+- **`npx tsc --noEmit`**: PASS (0 errors)
+- **`npm run build`**: PASS (8.77s)
+- **Browser verification**: Camera permission prompt → live video → toggle off → toggle on → navigate away stops camera → no console errors
+
+---
+
+### NEXT TASK: Video Interview Phase — Task 2: AI TTS
+
+*(DO NOT implement until reviewed and approved by the project lead.)*
+
+**Planned scope:**
+- Add AI text-to-speech so the AI interviewer reads questions aloud
+- Use browser Web Speech API `speechSynthesis` (zero-dependency) as first option
+- Fallback: Deepgram Aura via existing `/api/tts/speak` FastAPI endpoint
+- Synchronize AI question display → TTS playback → candidate response
+- Reuse existing interview conductor, questions, evaluation, and scoring
+- Do NOT rewrite working interview logic
+
+**Architecture Rules (carry forward):**
 - Reuse the existing interview conductor (`interview_conductor_agent.py`).
 - Reuse adaptive questioning and answer evaluation.
 - Reuse MongoDB persistence.
@@ -414,6 +442,7 @@ PDF Resume Upload
 | 2026-09-20 | Task 9 Restore Flask Resume Analysis | Installed `spacy==3.8.16` and `en_core_web_sm==3.8.0`. Fixed two Flask startup issues: (1) `UnicodeEncodeError` on Windows cp1252 — resolved via `PYTHONUTF8=1`; (2) Werkzeug watchdog reloader `WinError 10038` + env var loss — fixed by adding `use_reloader=False` to `app.run()`. Verified HTTP 200 with real PDF, score=44.0, Groq skills extraction working. |
 | 2026-09-20 | Task 10 Fix Resume Analysis Groq Model Config | Replaced hardcoded `llama-3.3-70b-versatile` in `resume_analysis_agent.py` with `os.getenv('GROQ_MODEL', 'qwen/qwen3.8-27b')`. Verified `/api/analyze` with `Vaibhav_Narute.pdf` (score=58.0, 8 matching skills) and `Aaryan Gole - Resume.pdf` (score=28.0). Candidate handoff, `tsc` (0 errors), `npm run build` all PASS. |
 | 2026-09-20 | MVP Checkpoint — Verified before Video Interview + AI TTS phase | 21/21 QA checks passed. Full end-to-end flow confirmed. Git checkpoint committed. |
+| 2026-09-20 | Video Interview Phase Task 1 — Webcam Integration | Added native webcam preview to `VideoInterview.tsx` using `navigator.mediaDevices.getUserMedia`. Implemented idle/requesting/active/off/denied/unavailable camera states, toggle on/off control, auto-start on interview begin, and stream cleanup on unmount. Zero backend changes, zero new dependencies. `tsc` (0 errors), `npm run build` (PASS 8.77s), browser verified (camera active, toggle works, no console errors). |
 
 
 
