@@ -130,7 +130,7 @@ class InterviewConductorAgent:
         
         # Initialize Groq client
         self.groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        self.llm_model = "llama-3.3-70b-versatile"
+        self.llm_model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
         
         # Initialize MCP components
         self.context_manager = MCPContextManager(max_context_length=15000)
@@ -703,6 +703,15 @@ Provide detailed JSON response:
         
         try:
             current_stage = state.get('current_stage', 'technical')
+            
+            # Intro stage always transitions directly to technical stage
+            if current_stage == 'intro':
+                logger.info(f"   Decision: Transition from intro to technical stage")
+                state['should_transition_stage'] = True
+                state['should_ask_followup'] = False
+                state['interview_complete'] = False
+                return state
+
             questions_in_stage = state.get(f'{current_stage}_questions_count', 0)
             target_questions = self.questions_per_stage.get(current_stage, 5)
             
@@ -715,7 +724,7 @@ Provide detailed JSON response:
             
             # Check if we should transition to next stage
             if questions_in_stage >= target_questions:
-                current_stage_index = self.interview_stages.index(current_stage)
+                current_stage_index = self.interview_stages.index(current_stage) if current_stage in self.interview_stages else 0
                 
                 # Check if there are more stages
                 if current_stage_index < len(self.interview_stages) - 1:
@@ -882,6 +891,17 @@ Provide JSON response:
         
         try:
             # Prepare interview document
+            started_at_val = state.get('started_at')
+            if isinstance(started_at_val, str):
+                try:
+                    started_at_dt = datetime.fromisoformat(started_at_val)
+                except Exception:
+                    started_at_dt = datetime.utcnow()
+            elif isinstance(started_at_val, datetime):
+                started_at_dt = started_at_val
+            else:
+                started_at_dt = datetime.utcnow()
+
             interview_doc = {
                 "interview_id": state.get('interview_id'),
                 "session_id": state.get('session_id'),
@@ -895,9 +915,10 @@ Provide JSON response:
                 "job_title": state.get('job_title'),
                 
                 # Interview details
-                "status": "completed",
-                "started_at": datetime.fromisoformat(state.get('started_at', datetime.utcnow().isoformat())),
-                "completed_at": datetime.utcnow(),
+                "current_stage": state.get('current_stage', 'intro'),
+                "status": "completed" if state.get('interview_complete') else "in_progress",
+                "started_at": started_at_dt,
+                "completed_at": datetime.utcnow() if state.get('interview_complete') else None,
                 "duration_minutes": state.get('duration_minutes', 0),
                 
                 # Questions and answers
@@ -1086,9 +1107,12 @@ Examples: teamwork, conflict resolution, leadership, adaptability""",
         
         try:
             # Initialize state
+            interview_id = interview_config.get('interview_id') or f"int_{uuid.uuid4()}"
+            session_id = interview_config.get('session_id') or f"session_{uuid.uuid4()}"
+            
             initial_state = InterviewState(
-                interview_id=interview_config.get('interview_id', f"int_{uuid.uuid4()}"),
-                session_id=interview_config.get('session_id', f"session_{uuid.uuid4()}"),
+                interview_id=interview_id,
+                session_id=session_id,
                 meeting_id=interview_config.get('meeting_id'),
                 
                 candidate_email=interview_config.get('candidate_email', ''),
@@ -1146,6 +1170,9 @@ Examples: teamwork, conflict resolution, leadership, adaptability""",
             
             # Run workflow up to introduction
             result = await self.workflow.ainvoke(initial_state)
+            
+            # Persist initial interview in MongoDB
+            self.store_interview(result)
             
             introduction_text = result.get('current_question', '')
             
@@ -1296,7 +1323,7 @@ Examples: teamwork, conflict resolution, leadership, adaptability""",
             job_description='',  # Load separately if needed
             candidate_resume='',  # Load separately if needed
             required_skills=[],
-            current_stage=interview_doc.get('current_stage', 'technical'),
+            current_stage=interview_doc.get('current_stage', 'intro'),
             stage_transition_count=0,
             conversation_history=interview_doc.get('conversation_history', []),
             questions_asked=interview_doc.get('questions_asked', []),
@@ -1321,7 +1348,7 @@ Examples: teamwork, conflict resolution, leadership, adaptability""",
             should_ask_followup=False,
             should_transition_stage=False,
             interview_complete=False,
-            started_at=interview_doc.get('started_at', datetime.utcnow()).isoformat(),
+            started_at=interview_doc.get('started_at').isoformat() if isinstance(interview_doc.get('started_at'), datetime) else str(interview_doc.get('started_at', datetime.utcnow().isoformat())),
             current_time=datetime.utcnow().isoformat(),
             duration_minutes=interview_doc.get('duration_minutes', 0),
             target_duration_minutes=60,

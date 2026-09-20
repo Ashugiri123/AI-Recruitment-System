@@ -11,7 +11,21 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const auth = getAuth(app); 
+// Initialize Firebase with fallback when credentials are not configured
+let app: any = null;
+let db: any = null;
+let auth: any = null;
+
+try {
+  if (firebaseConfig.apiKey) {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+  } else {
+    console.warn("Firebase credentials not configured, skipping Firebase initialization.");
+  }
+} catch (error) {
+  console.warn("Failed to initialize Firebase:", error);
+}
+
+export { db, auth }; 

@@ -6,9 +6,8 @@ if (!groqApiKey) {
   console.error('VITE_GROQ_API_KEY is not defined. Please check your .env file.');
 }
 
-console.log('Initializing Groq client with API key: Present');
 const groq = new Groq({
-  apiKey: groqApiKey,
+  apiKey: groqApiKey || 'dummy_placeholder_key',
   dangerouslyAllowBrowser: true
 });
 

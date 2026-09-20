@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2, Upload, FileText, Settings, Send, Download, CheckCircle2, XCircle, ClipboardCheck, Video } from 'lucide-react';
+import { Loader2, Upload, FileText, Settings, Send, Download, CheckCircle2, XCircle, ClipboardCheck, Video, Sparkles } from 'lucide-react';
 import { motion } from "framer-motion";
 import { useTheme } from '../../context/ThemeContext';
 import { db, auth } from '@/lib/firebase';
@@ -59,7 +59,40 @@ Best regards,
 HR Team`
 };
 
+const COMMON_TECH_SKILLS = [
+  'Python', 'JavaScript', 'TypeScript', 'React', 'Node.js', 'FastAPI',
+  'Django', 'Flask', 'Java', 'C++', 'C#', 'Go', 'Rust', 'Ruby', 'PHP',
+  'HTML', 'CSS', 'Tailwind', 'SQL', 'PostgreSQL', 'MySQL', 'MongoDB',
+  'Redis', 'Docker', 'Kubernetes', 'AWS', 'Azure', 'GCP', 'Git',
+  'CI/CD', 'REST', 'GraphQL', 'Machine Learning', 'AI', 'Pandas', 'NumPy'
+];
+
+const extractSkillsFromText = (text: string): string[] => {
+  if (!text) return [];
+  const found: string[] = [];
+  for (const skill of COMMON_TECH_SKILLS) {
+    const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+    if (regex.test(text)) {
+      found.push(skill);
+    }
+  }
+  return found;
+};
+
+const extractTargetJobTitle = (text: string): string => {
+  if (!text) return '';
+  const firstLine = text.trim().split('\n')[0].trim();
+  const match = firstLine.match(/^(?:job\s*title|role|position)\s*:\s*(.+)$/i);
+  if (match) return match[1].trim();
+  if (firstLine.length > 0 && firstLine.length <= 60 && !firstLine.includes('.')) {
+    return firstLine;
+  }
+  return '';
+};
+
 const ResumeAnalyzer: React.FC = () => {
+  const [jobTitle, setJobTitle] = useState<string>('');
   const [jobDescription, setJobDescription] = useState<string>('');
   const [resumeFiles, setResumeFiles] = useState<File[]>([]);
   const [threshold, setThreshold] = useState<number>(50);
@@ -88,6 +121,53 @@ const ResumeAnalyzer: React.FC = () => {
     if (e.target.files) {
       setResumeFiles(Array.from(e.target.files));
     }
+  };
+
+  const handleStartInterviewForCandidate = (candidate: ResumeResult) => {
+    const rawName = candidate.names?.[0] || '';
+    const name = (rawName && rawName !== 'Name not found') ? rawName : '';
+    const rawEmail = candidate.emails?.[0] || '';
+    const email = (rawEmail && rawEmail !== 'Email not found') ? rawEmail : '';
+    const targetTitle = jobTitle.trim() || extractTargetJobTitle(jobDescription);
+    const skills = extractSkillsFromText(candidate.text || '');
+
+    navigate(name ? `/interview/${encodeURIComponent(name)}` : '/interview', {
+      state: {
+        candidateName: name,
+        candidateEmail: email,
+        jobTitle: targetTitle,
+        skills: skills,
+        candidateResume: candidate.text || '',
+        jobDescription: jobDescription || ''
+      }
+    });
+  };
+
+  const handleStartInterviewForSelected = () => {
+    if (selectedResumes.length === 0) {
+      toast({
+        title: "Warning",
+        description: "Please select at least one candidate to start an interview.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const candidate = results[selectedResumes[0]];
+    handleStartInterviewForCandidate(candidate);
+  };
+
+  const handleLoadSampleCandidate = () => {
+    setJobTitle("Senior Python Developer");
+    setJobDescription("Senior Python Developer with 4+ years experience in Python, FastAPI, React, Docker, and MongoDB.");
+    setResults([
+      {
+        names: ["Alex Johnson"],
+        emails: ["alex.johnson@example.com"],
+        similarity: 88.5,
+        selected: true,
+        text: "Alex Johnson\nalex.johnson@example.com\nSenior Software Engineer with 5+ years of experience in Python, FastAPI, React, TypeScript, Docker, and MongoDB. Proven track record of architecting scalable microservices."
+      }
+    ]);
   };
 
   const handleAnalyze = async () => {
@@ -504,17 +584,33 @@ const ResumeAnalyzer: React.FC = () => {
                   Enter the job requirements and qualifications
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder="Enter the job description..."
-                  className={`min-h-[200px] ${
-                    theme === 'dark' 
-                      ? 'bg-slate-800/50 border-slate-700 text-white' 
-                      : 'bg-white/50 border-slate-200 text-slate-900'
-                  }`}
-                />
+              <CardContent className="space-y-3">
+                <div className="space-y-1">
+                  <label className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+                    Target Job Title (Optional)
+                  </label>
+                  <Input
+                    placeholder="e.g. Full Stack Engineer, Senior Python Developer"
+                    value={jobTitle}
+                    onChange={(e) => setJobTitle(e.target.value)}
+                    className={theme === 'dark' ? 'bg-slate-800/50 border-slate-700 text-white' : 'bg-white/50 border-slate-200 text-slate-900'}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+                    Job Description
+                  </label>
+                  <Textarea
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    placeholder="Enter the job description and requirements..."
+                    className={`min-h-[160px] ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800/50 border-slate-700 text-white' 
+                        : 'bg-white/50 border-slate-200 text-slate-900'
+                    }`}
+                  />
+                </div>
               </CardContent>
             </Card>
 
@@ -623,7 +719,31 @@ const ResumeAnalyzer: React.FC = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.4 }}
           >
-            {results.length > 0 && (
+            {results.length === 0 ? (
+              <Card className={`${
+                theme === 'dark' 
+                  ? 'bg-slate-900/50 backdrop-blur-sm border-slate-800' 
+                  : 'bg-white/50 backdrop-blur-sm border-slate-200'
+              } p-8 text-center flex flex-col items-center justify-center min-h-[360px]`}>
+                <FileText className="w-12 h-12 text-slate-400 mb-3 opacity-60" />
+                <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>
+                  No Screening Results Yet
+                </h3>
+                <p className={`text-xs max-w-sm mt-1 mb-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Upload PDF resumes on the left to analyze matches against the job description, or load a sample screened candidate to test interview hand-off.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLoadSampleCandidate}
+                  id="load-sample-candidate-btn"
+                  className="text-xs border-cyan-500/50 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/40"
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5 text-cyan-500" />
+                  Load Sample Screened Candidate
+                </Button>
+              </Card>
+            ) : (
               <Card className={`${
                 theme === 'dark' 
                   ? 'bg-slate-900/50 backdrop-blur-sm border-slate-800' 
@@ -683,10 +803,19 @@ const ResumeAnalyzer: React.FC = () => {
                                 {result.emails[0] || 'Email not found'}
                               </p>
                             </div>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
                               <Badge variant={result.similarity >= threshold ? "default" : "secondary"}>
                                 {result.similarity.toFixed(2)}% Match
                               </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleStartInterviewForCandidate(result)}
+                                className="text-xs h-7 px-2 border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-1"
+                              >
+                                <Video className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                Start Interview
+                              </Button>
                               <Checkbox
                                 checked={selectedResumes.includes(index)}
                                 onCheckedChange={(checked) => {
@@ -762,15 +891,14 @@ const ResumeAnalyzer: React.FC = () => {
                       <XCircle className="mr-2 h-4 w-4" />
                       Reject Others
                     </Button>
-                    {/*
                     <Button
-                      onClick={() => navigate('/interview/swarup')}
-                      className="bg-gradient-to-r from-purple-400 to-pink-500 hover:from-purple-500 hover:to-pink-600 text-white font-semibold"
+                      onClick={handleStartInterviewForSelected}
+                      disabled={selectedResumes.length === 0}
+                      className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold"
                     >
                       <Video className="mr-2 h-4 w-4" />
-                      Start Video Interview
+                      Start Interview
                     </Button>
-                    */}
                     <Button
                       onClick={handleDownloadCSV}
                       variant="outline"
