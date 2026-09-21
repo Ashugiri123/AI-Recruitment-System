@@ -5,6 +5,38 @@
 
 ---
 
+## 🚀 Quick Presentation Startup (One Command)
+
+To run the complete AI Recruitment & AI Interview presentation demo with a single command:
+
+```powershell
+.\start_demo.ps1
+```
+
+### 1. Required Environment Variables
+Ensure `backend/.env` is created from `backend/.env.template` with at least:
+- `GROQ_API_KEY`: Your Groq API key for LLM question generation & answer evaluation.
+- `MONGODB_URI` / `MONGO_URI`: MongoDB connection string.
+
+### 2. What `start_demo.ps1` Starts
+Executing `.\start_demo.ps1` in PowerShell opens 3 service windows:
+1. **Flask Resume Analysis Service** — Running on `http://localhost:5000`
+2. **FastAPI AI Interview Conductor** — Running on `http://localhost:8001`
+3. **Vite React Frontend** — Running on `http://localhost:3000`
+
+### 3. Expected URLs
+- **Web App**: [http://localhost:3000](http://localhost:3000)
+- **Recruiter Dashboard**: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
+- **Flask Resume Backend**: [http://localhost:5000](http://localhost:5000)
+- **FastAPI AI Conductor Backend**: [http://localhost:8001](http://localhost:8001)
+- **FastAPI Interactive API Docs**: [http://localhost:8001/docs](http://localhost:8001/docs)
+
+### 4. How to Stop the Demo
+To stop all services, simply close the opened PowerShell terminal windows for Flask, FastAPI, and Vite.
+
+
+---
+
 ## What is this project?
 
 An AI platform that runs **the entire hiring pipeline by itself** — from uploading a resume to conducting a live voice interview on Google Meet — without any human sitting in the interview.

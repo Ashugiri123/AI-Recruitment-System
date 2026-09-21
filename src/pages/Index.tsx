@@ -281,6 +281,13 @@ const Index = () => {
               >
                 {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
               </Button>
+              <Link to="/dashboard">
+                <Button 
+                  className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-medium shadow-sm text-sm"
+                >
+                  Recruiter Dashboard
+                </Button>
+              </Link>
               <Button 
                 variant="outline" 
                 className={`${

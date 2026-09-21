@@ -14,6 +14,7 @@ import CandidatePredictor from "./components/ui/CandidatePredictor";
 import EmployeeResumeAnalysis from "./components1/EmployeeResumeAnalysis";
 import HRResumeAnalysis from "./components1/HRResumeAnalysis";
 import VideoInterview from "./components1/VideoInterview";
+import RecruiterDashboard from "./components1/RecruiterDashboard";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,8 @@ const App = () => (
           <Router>
             <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/dashboard" element={<RecruiterDashboard />} />
+              <Route path="/recruiter-dashboard" element={<RecruiterDashboard />} />
               <Route path="/resumeAnalyzer" element={<ResumeAnalyzer />} />
               <Route path="/login" element={<Login />} />
               <Route path="/resume-analysis" element={<ResumeAnalysisContainer />} />
